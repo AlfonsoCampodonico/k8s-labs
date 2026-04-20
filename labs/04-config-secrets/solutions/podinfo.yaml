@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Namespace
+metadata: { name: lab-04 }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: podinfo-cfg, namespace: lab-04 }
+data:
+  PODINFO_UI_COLOR: "#34568B"
+  PODINFO_UI_MESSAGE: "hello from v1"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: podinfo-cfg-v2, namespace: lab-04 }
+immutable: true
+data:
+  PODINFO_UI_COLOR: "#9B2335"
+  PODINFO_UI_MESSAGE: "hello from v2"
+---
+apiVersion: v1
+kind: Secret
+metadata: { name: podinfo-creds, namespace: lab-04 }
+type: Opaque
+stringData:
+  api_key: "not-a-real-key"
+  api_secret: "not-a-real-secret"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: podinfo, namespace: lab-04, labels: { app: podinfo } }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: podinfo } }
+  template:
+    metadata: { labels: { app: podinfo, lab: "04" } }
+    spec:
+      volumes:
+        - name: creds
+          secret:
+            secretName: podinfo-creds
+            defaultMode: 0400
+      containers:
+        - name: app
+          image: ghcr.io/stefanprodan/podinfo:6.7.1
+          ports: [{ containerPort: 9898 }]
+          envFrom:
+            - configMapRef: { name: podinfo-cfg-v2 }
+          volumeMounts:
+            - { name: creds, mountPath: /etc/podinfo/creds, readOnly: true }
+          readinessProbe: { httpGet: { path: /readyz, port: 9898 } }
+          resources: { requests: { cpu: 25m, memory: 32Mi } }

@@ -1,0 +1,23 @@
+# Editor noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Student scratch space — git-ignored so students can experiment without
+# polluting PRs.
+scratch/
+**/scratch/
+*.scratch.yaml
+
+# Generated kubeconfigs
+kubeconfig*
+*.kubeconfig
+
+# Helm
+**/charts/*.tgz
+**/*.lock
+
+# Grader output
+report.md
+*.grade.log

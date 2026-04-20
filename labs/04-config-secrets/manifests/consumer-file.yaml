@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer-file
+  labels: { app: consumer-file }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: consumer-file } }
+  template:
+    metadata: { labels: { app: consumer-file } }
+    spec:
+      volumes:
+        - name: cfg
+          configMap:
+            name: app-config
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["sh", "-c", "ls /etc/app; sleep 3600"]
+          volumeMounts:
+            - { name: cfg, mountPath: /etc/app, readOnly: true }

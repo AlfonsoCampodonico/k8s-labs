@@ -1,0 +1,15 @@
+apiVersion: batch/v1
+kind: Job
+metadata: { name: mapreduce }
+spec:
+  completions: 8
+  parallelism: 3
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: worker
+          image: busybox:1.36
+          command: ["sh", "-c", "sleep $((RANDOM % 4 + 1)); echo done on $HOSTNAME"]

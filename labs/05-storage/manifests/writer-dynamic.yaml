@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: writer
+  labels: { app: writer }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: writer } }
+  template:
+    metadata: { labels: { app: writer } }
+    spec:
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: data
+      containers:
+        - name: app
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              while true; do
+                echo "$(date -u +%FT%TZ) wrote line" >> /data/log.txt
+                sleep 3
+              done
+          volumeMounts:
+            - { name: data, mountPath: /data }

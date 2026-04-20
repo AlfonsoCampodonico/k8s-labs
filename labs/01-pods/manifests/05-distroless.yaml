@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: quiet
+  labels:
+    app: quiet
+spec:
+  # Uses the Kubernetes pause image — no shell, no tools. A realistic
+  # stand-in for a distroless production image. `kubectl exec` will fail;
+  # the debugging walk-through uses `kubectl debug` instead.
+  containers:
+    - name: quiet
+      image: registry.k8s.io/pause:3.9

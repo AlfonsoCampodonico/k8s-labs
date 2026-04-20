@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: db, labels: { app: db } }
+spec:
+  serviceName: db
+  replicas: 3
+  podManagementPolicy: OrderedReady
+  selector: { matchLabels: { app: db } }
+  template:
+    metadata: { labels: { app: db } }
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "${HOSTNAME}" > /data/identity
+              while true; do cat /data/identity; sleep 10; done
+          volumeMounts:
+            - { name: data, mountPath: /data }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: standard
+        resources: { requests: { storage: 100Mi } }

@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Namespace
+metadata: { name: lab-05 }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: podinfo-data, namespace: lab-05 }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: standard
+  resources: { requests: { storage: 1Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: podinfo, namespace: lab-05, labels: { app: podinfo } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: podinfo } }
+  template:
+    metadata: { labels: { app: podinfo, lab: "05" } }
+    spec:
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: podinfo-data }
+      containers:
+        - name: app
+          image: ghcr.io/stefanprodan/podinfo:6.7.1
+          ports: [{ containerPort: 9898 }]
+          readinessProbe: { httpGet: { path: /readyz, port: 9898 } }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata: { name: archive }
+spec:
+  capacity: { storage: 500Mi }
+  accessModes: [ReadOnlyMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath:
+    path: /var/local/archive
+    type: DirectoryOrCreate
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [k8s-labs-worker, k8s-labs-worker2]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: archive, namespace: lab-05 }
+spec:
+  accessModes: [ReadOnlyMany]
+  storageClassName: ""
+  resources: { requests: { storage: 500Mi } }
+  volumeName: archive

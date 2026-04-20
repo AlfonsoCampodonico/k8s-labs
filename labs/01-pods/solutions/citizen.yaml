@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-01
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: citizen
+  namespace: lab-01
+  labels:
+    app: citizen
+    tier: frontend
+    lab: "01"
+  annotations:
+    owner: student
+spec:
+  volumes:
+    - name: access-log
+      emptyDir: {}
+  initContainers:
+    - name: wait-dns
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          for i in $(seq 1 30); do
+            if nslookup kubernetes.default >/dev/null 2>&1; then
+              echo "dns ok"; exit 0
+            fi
+            sleep 1
+          done
+          echo "dns not ready"; exit 1
+  containers:
+    - name: app
+      image: ghcr.io/stefanprodan/podinfo:6.7.0
+      ports:
+        - name: http
+          containerPort: 9898
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: 9898
+        periodSeconds: 5
+      resources:
+        requests:
+          cpu: 50m
+          memory: 32Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+      volumeMounts:
+        - name: access-log
+          mountPath: /var/log/app
+    - name: logger
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - touch /var/log/app/access.log && tail -F /var/log/app/access.log
+      volumeMounts:
+        - name: access-log
+          mountPath: /var/log/app
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: failer
+  namespace: lab-01
+  labels:
+    app: failer
+spec:
+  restartPolicy: OnFailure
+  containers:
+    - name: boom
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 5; exit 137"]

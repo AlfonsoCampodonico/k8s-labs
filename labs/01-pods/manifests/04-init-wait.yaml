@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: waiter
+  labels:
+    app: waiter
+spec:
+  restartPolicy: Always
+  initContainers:
+    - name: wait-for-upstream
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "waiting for upstream.default.svc.cluster.local..."
+          for i in $(seq 1 60); do
+            if nslookup upstream.default.svc.cluster.local >/dev/null 2>&1; then
+              echo "upstream reachable"; exit 0
+            fi
+            sleep 2
+          done
+          echo "gave up waiting for upstream"; exit 1
+  containers:
+    - name: app
+      image: nginx:1.27-alpine

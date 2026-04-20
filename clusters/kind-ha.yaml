@@ -1,0 +1,26 @@
+# Optional topology used by the "HA control plane" bonus exercise in
+# lab 00 and by the capstone if the student wants to demonstrate that their
+# app tolerates control-plane upgrades.
+#
+# Three control-plane nodes behind a haproxy load balancer, plus three
+# workers across three simulated zones. This is too heavy for an 8GiB
+# laptop — only use it on a workstation.
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: k8s-labs-ha
+networking:
+  apiServerAddress: "127.0.0.1"
+nodes:
+  - role: control-plane
+  - role: control-plane
+  - role: control-plane
+  - role: worker
+    labels:
+      topology.k8s-labs/zone: "a"
+  - role: worker
+    labels:
+      topology.k8s-labs/zone: "b"
+  - role: worker
+    labels:
+      topology.k8s-labs/zone: "c"

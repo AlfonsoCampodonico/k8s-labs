@@ -1,0 +1,22 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/stefanprodan/podinfo
+  tag: "6.7.1"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 80
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+ingress:
+  enabled: false
+  className: nginx
+  host: podinfo.k8s-labs.test

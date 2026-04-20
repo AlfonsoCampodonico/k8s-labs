@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-04
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: broken-cfg
+  namespace: lab-04
+data:
+  # The Deployment references a key "DB_URL" that is intentionally
+  # missing. Your fix is to add it here (or via `kubectl patch`) without
+  # editing the Deployment manifest or pod template.
+  LOG_LEVEL: info
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broken-consumer
+  namespace: lab-04
+  labels: { app: broken-consumer }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: broken-consumer } }
+  template:
+    metadata: { labels: { app: broken-consumer } }
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["sh", "-c", "echo DB=${DB_URL}; sleep 3600"]
+          env:
+            - name: DB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: broken-cfg
+                  key: DB_URL

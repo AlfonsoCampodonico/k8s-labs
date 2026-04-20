@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-02
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: lab-02
+  labels:
+    app: web
+    lab: "02"
+spec:
+  replicas: 4
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: web
+        lab: "02"
+        track: stable
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/stefanprodan/podinfo:6.7.1
+          ports: [{ containerPort: 9898 }]
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9898 }
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-canary
+  namespace: lab-02
+  labels:
+    app: web
+    lab: "02"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+      track: canary
+  template:
+    metadata:
+      labels:
+        app: web
+        lab: "02"
+        track: canary
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/stefanprodan/podinfo:6.7.2
+          ports: [{ containerPort: 9898 }]
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9898 }
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }

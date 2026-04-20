@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: heartbeat }
+spec:
+  schedule: "*/1 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  startingDeadlineSeconds: 30
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: beat
+              image: busybox:1.36
+              command: ["sh", "-c", "date -u +%FT%TZ; echo alive"]

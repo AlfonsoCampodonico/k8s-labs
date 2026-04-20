@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Namespace
+metadata: { name: lab-10 }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: app-cfg, namespace: lab-10 }
+data:
+  # Missing: GREETING key. Fix by adding it — do NOT change the Deployment.
+  LOG_LEVEL: info
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: broken, namespace: lab-10, labels: { app: broken } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: broken } }
+  template:
+    metadata: { labels: { app: broken } }
+    spec:
+      containers:
+        - name: app
+          # BUG 1: wrong tag. Fix to podinfo:6.7.1 via `kubectl set image`
+          # or `kubectl edit` — without deleting the Deployment.
+          image: ghcr.io/stefanprodan/podinfo:does-not-exist
+          ports: [{ containerPort: 9898 }]
+          envFrom:
+            - configMapRef: { name: app-cfg }
+          # BUG 2: liveness fires immediately; before podinfo is up, it
+          # nukes the container. Adjust `initialDelaySeconds` or replace
+          # with startupProbe.
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9898 }
+            initialDelaySeconds: 0
+            periodSeconds: 1
+            failureThreshold: 1
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9898 }
+            periodSeconds: 5

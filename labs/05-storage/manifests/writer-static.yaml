@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: writer-static, labels: { app: writer-static } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: writer-static } }
+  template:
+    metadata: { labels: { app: writer-static } }
+    spec:
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: demo-static }
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["sh", "-c", "echo hello > /data/hello && sleep 3600"]
+          volumeMounts:
+            - { name: data, mountPath: /data }

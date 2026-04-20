@@ -1,0 +1,40 @@
+# Default cluster topology used by the course.
+#
+# One control-plane node plus two workers is enough to demonstrate
+# scheduling, node selectors, affinities, and pod disruption without
+# flattening a laptop.
+#
+# The control-plane node publishes port 80/443 on the host so the Ingress
+# labs work without `kubectl port-forward`. extraPortMappings use
+# `listenAddress: "127.0.0.1"` to avoid surprising the student's network.
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: k8s-labs
+networking:
+  apiServerAddress: "127.0.0.1"
+  # Disable the default CNI so students can (optionally) install a different
+  # CNI in lab 09. kindnet is re-enabled below by leaving the field unset.
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true,node-role.kubernetes.io/edge=true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 8080
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 8443
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+  - role: worker
+    labels:
+      topology.k8s-labs/zone: "a"
+  - role: worker
+    labels:
+      topology.k8s-labs/zone: "b"

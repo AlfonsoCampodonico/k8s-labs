@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-03
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: web, namespace: lab-03, labels: { app: web } }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: web, track: stable } }
+  template:
+    metadata: { labels: { app: web, track: stable, lab: "03" } }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/stefanprodan/podinfo:6.7.1
+          ports: [{ containerPort: 9898 }]
+          readinessProbe: { httpGet: { path: /readyz, port: 9898 } }
+          resources: { requests: { cpu: 25m, memory: 32Mi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: web-canary, namespace: lab-03, labels: { app: web } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: web, track: canary } }
+  template:
+    metadata: { labels: { app: web, track: canary, lab: "03" } }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/stefanprodan/podinfo:6.7.2
+          ports: [{ containerPort: 9898 }]
+          readinessProbe: { httpGet: { path: /readyz, port: 9898 } }
+          resources: { requests: { cpu: 25m, memory: 32Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: web, namespace: lab-03 }
+spec:
+  selector: { app: web }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 9898
+---
+apiVersion: v1
+kind: Service
+metadata: { name: web-stable, namespace: lab-03 }
+spec:
+  clusterIP: None
+  selector: { app: web, track: stable }
+  ports:
+    - { name: http, port: 80, targetPort: 9898 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: web-canary, namespace: lab-03 }
+spec:
+  clusterIP: None
+  selector: { app: web, track: canary }
+  ports:
+    - { name: http, port: 80, targetPort: 9898 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-ingress
+  namespace: lab-03
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: web.k8s-labs.test
+      http:
+        paths:
+          - path: /canary(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service: { name: web-canary, port: { number: 80 } }
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: web, port: { number: 80 } }

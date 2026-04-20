@@ -1,0 +1,8 @@
+apiVersion: v2
+name: podinfo
+description: Reference chart used by lab 11
+type: application
+version: 0.1.0
+appVersion: "6.7.1"
+maintainers:
+  - name: k8s-labs

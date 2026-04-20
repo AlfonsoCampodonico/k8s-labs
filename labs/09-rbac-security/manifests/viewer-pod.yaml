@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Pod
+metadata: { name: viewer-pod, labels: { app: viewer } }
+spec:
+  serviceAccountName: viewer
+  containers:
+    - name: kc
+      image: bitnami/kubectl:1.29
+      command: ["sh", "-c", "kubectl get pods && sleep 3600"]

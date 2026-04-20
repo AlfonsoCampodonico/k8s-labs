@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer-env
+  labels: { app: consumer-env }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: consumer-env } }
+  template:
+    metadata: { labels: { app: consumer-env } }
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["sh", "-c", "env | sort; sleep 3600"]
+          envFrom:
+            - configMapRef: { name: app-config }
