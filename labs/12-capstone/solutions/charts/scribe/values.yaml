@@ -1,0 +1,43 @@
+namespace: lab-12
+
+frontend:
+  replicas: 2
+  image:
+    repository: nginx
+    tag: 1.27-alpine
+  resources:
+    requests: { cpu: 25m, memory: 32Mi }
+    limits:   { cpu: 200m, memory: 64Mi }
+
+backend:
+  image:
+    repository: ghcr.io/stefanprodan/podinfo
+    tag: "6.7.1"
+  resources:
+    # CPU request must be non-zero for the HPA on CPU utilisation.
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 250m, memory: 128Mi }
+  hpa:
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 50
+
+postgres:
+  image:
+    repository: postgres
+    tag: 16-alpine
+  storage: 1Gi
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+postgresCredentials:
+  username: scribe
+  # The values themselves are not secret here — this is a lab. In real
+  # life pull from an external secret store (External Secrets, Vault).
+  password: "change-me-in-prod"
+  database: scribe
+
+ingress:
+  host: scribe.k8s-labs.test
+  className: nginx

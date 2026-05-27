@@ -30,7 +30,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/stefanprodan/podinfo:6.7.2
+          image: ghcr.io/stefanprodan/podinfo:6.8.0
           ports: [{ containerPort: 9898 }]
           readinessProbe: { httpGet: { path: /readyz, port: 9898 } }
           resources: { requests: { cpu: 25m, memory: 32Mi } }

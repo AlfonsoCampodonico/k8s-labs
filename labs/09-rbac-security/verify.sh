@@ -22,10 +22,14 @@ if kubectl auth can-i get pods -n "${ns}" --as="system:serviceaccount:${ns}:read
 else
   fail "reader should be able to get pods in ${ns}"
 fi
-if kubectl auth can-i delete pods -n "${ns}" --as="system:serviceaccount:${ns}:reader" 2>/dev/null | grep -qi '^no$'; then
+# Capture instead of piping: `can-i` exits 1 when the answer is "no",
+# and `set -o pipefail` would then make `... | grep '^no$'` fail even
+# though the answer is correct.
+delete_check=$(kubectl auth can-i delete pods -n "${ns}" --as="system:serviceaccount:${ns}:reader" 2>/dev/null || true)
+if [[ "${delete_check}" == "no" ]]; then
   pass "reader cannot delete pods (least-privilege)"
 else
-  fail "reader should not be able to delete pods"
+  fail "reader should not be able to delete pods (got: ${delete_check:-<empty>})"
 fi
 
 # C2 — deployments + network policies.

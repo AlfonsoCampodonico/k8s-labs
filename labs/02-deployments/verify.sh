@@ -46,11 +46,15 @@ fi
 if kubectl -n "${ns}" get deploy web-canary >/dev/null 2>&1; then
   pass "deployment/web-canary exists"
   assert_jsonpath deployment web-canary "${ns}" '{.spec.replicas}' '1'
+  # The point of the canary is that it runs a *different* podinfo tag than
+  # stable. We don't care which exact tag, just that it's a real podinfo
+  # image and not the same as stable's.
+  stable_img=$(kubectl -n "${ns}" get deploy web -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
   canary_img=$(kubectl -n "${ns}" get deploy web-canary -o jsonpath='{.spec.template.spec.containers[0].image}')
-  if [[ "${canary_img}" == "ghcr.io/stefanprodan/podinfo:6.7.2" ]]; then
-    pass "web-canary image is 6.7.2"
+  if [[ "${canary_img}" == ghcr.io/stefanprodan/podinfo:* && "${canary_img}" != "${stable_img}" ]]; then
+    pass "web-canary uses a different podinfo tag than stable (${canary_img})"
   else
-    fail "web-canary image 6.7.2 (got: ${canary_img:-<none>})"
+    fail "web-canary should be a different podinfo tag than stable '${stable_img}' (got: ${canary_img:-<none>})"
   fi
   track=$(kubectl -n "${ns}" get deploy web-canary -o jsonpath='{.spec.template.metadata.labels.track}')
   if [[ "${track}" == "canary" ]]; then

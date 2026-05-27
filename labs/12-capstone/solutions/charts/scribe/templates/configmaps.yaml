@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "scribe.labels" . | nindent 4 }}
+data:
+  PODINFO_UI_COLOR: "#34568B"
+  PODINFO_UI_MESSAGE: "scribe — capstone"
+  LOG_LEVEL: info
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "scribe.labels" . | nindent 4 }}
+data:
+  # Minimal nginx site config — proxies /api to the backend Service.
+  default.conf: |
+    server {
+      listen 80 default_server;
+      server_name _;
+      location /api/ {
+        proxy_pass http://backend.{{ .Values.namespace }}.svc.cluster.local/;
+        proxy_set_header Host $host;
+      }
+      location / {
+        return 200 'scribe frontend ok\n';
+        add_header Content-Type text/plain;
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "scribe.labels" . | nindent 4 }}
+data:
+  01-init.sql: |
+    CREATE TABLE IF NOT EXISTS notes (
+      id    SERIAL PRIMARY KEY,
+      body  TEXT NOT NULL,
+      ts    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );

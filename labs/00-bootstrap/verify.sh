@@ -42,20 +42,20 @@ for ns in lab-00-alpha lab-00-beta; do
 done
 
 # C2 — sentinel pod is Running + Ready in each namespace.
+# We check the pod by name (rather than label selector) because modern
+# `kubectl run` doesn't auto-apply a `run=` label, and students aren't
+# required to add one — only the pod name is part of the challenge.
 for ns in lab-00-alpha lab-00-beta; do
   assert_resource pod sentinel "${ns}"
-  assert_pods_ready "run=sentinel,!purpose" "${ns}" 1 2>/dev/null || \
-    assert_pods_ready "app=sentinel" "${ns}" 1 2>/dev/null || \
-    # Fallback: check the pod named "sentinel" directly.
-    if kubectl -n "${ns}" get pod sentinel >/dev/null 2>&1; then
-      phase=$(kubectl -n "${ns}" get pod sentinel -o jsonpath='{.status.phase}')
-      ready=$(kubectl -n "${ns}" get pod sentinel -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
-      if [[ "${phase}" == "Running" && "${ready}" == "True" ]]; then
-        pass "pod sentinel in ${ns} is Running+Ready"
-      else
-        fail "pod sentinel in ${ns} phase=${phase} ready=${ready}"
-      fi
+  if kubectl -n "${ns}" get pod sentinel >/dev/null 2>&1; then
+    phase=$(kubectl -n "${ns}" get pod sentinel -o jsonpath='{.status.phase}')
+    ready=$(kubectl -n "${ns}" get pod sentinel -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+    if [[ "${phase}" == "Running" && "${ready}" == "True" ]]; then
+      pass "pod sentinel in ${ns} is Running+Ready"
+    else
+      fail "pod sentinel in ${ns} phase=${phase} ready=${ready}"
     fi
+  fi
 done
 
 # C3 — default namespace in kubeconfig is lab-00-alpha.

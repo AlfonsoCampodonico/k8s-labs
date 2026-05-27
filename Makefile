@@ -60,6 +60,10 @@ verify: _require_lab ## Run the automated grader for LAB
 grade: ## Run every grader and emit report.md
 	@./bin/grade.sh | tee report.md
 
+.PHONY: test-solutions
+test-solutions: ## Apply every reference solution then run its verifier
+	@./bin/test-solutions.sh
+
 .PHONY: clean-lab
 clean-lab: _require_lab ## Delete all resources created by LAB
 	@if [ -x $(LAB_DIR)/cleanup.sh ]; then \

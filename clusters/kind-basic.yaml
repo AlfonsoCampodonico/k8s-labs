@@ -17,12 +17,21 @@ networking:
   # CNI in lab 09. kindnet is re-enabled below by leaving the field unset.
 nodes:
   - role: control-plane
+    # `ingress-ready=true` is the kind-canonical label the nginx ingress
+    # controller looks for. It's not in the reserved kubernetes.io/ namespace,
+    # so kubelet is allowed to self-apply it via --node-labels.
+    #
+    # The `node-role.kubernetes.io/edge` label is NOT applied here: kubelet's
+    # NodeRestriction admission plugin forbids a node from labeling itself
+    # under kubernetes.io/, and kind's `labels:` block goes through that same
+    # restricted path. We apply that label in bin/cluster-up.sh via
+    # `kubectl label`, which runs as an authenticated client and is allowed.
     kubeadmConfigPatches:
       - |
         kind: InitConfiguration
         nodeRegistration:
           kubeletExtraArgs:
-            node-labels: "ingress-ready=true,node-role.kubernetes.io/edge=true"
+            node-labels: "ingress-ready=true"
     extraPortMappings:
       - containerPort: 80
         hostPort: 8080

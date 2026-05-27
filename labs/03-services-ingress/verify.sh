@@ -67,8 +67,19 @@ fi
 
 # Live HTTP check — only if ingress-nginx is installed on control-plane.
 if kubectl -n ingress-nginx get pods -l app.kubernetes.io/component=controller >/dev/null 2>&1; then
-  code_root=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: web.k8s-labs.test' http://127.0.0.1:8080/ || echo "000")
-  code_canary=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: web.k8s-labs.test' http://127.0.0.1:8080/canary || echo "000")
+  # Retry up to ~15s: endpoint slices can take a moment to be programmed
+  # for freshly-rolled-out pods, especially the single-replica canary.
+  curl_with_retry() {
+    local path="$1" code=000
+    for _ in $(seq 1 15); do
+      code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: web.k8s-labs.test' "http://127.0.0.1:8080${path}" || echo "000")
+      [[ "${code}" == "200" ]] && break
+      sleep 1
+    done
+    echo "${code}"
+  }
+  code_root=$(curl_with_retry "/")
+  code_canary=$(curl_with_retry "/canary")
   if [[ "${code_root}" == "200" ]]; then
     pass "GET / returned 200"
   else

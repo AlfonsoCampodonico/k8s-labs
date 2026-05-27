@@ -49,3 +49,34 @@ spec:
             - { name: creds, mountPath: /etc/podinfo/creds, readOnly: true }
           readinessProbe: { httpGet: { path: /readyz, port: 9898 } }
           resources: { requests: { cpu: 25m, memory: 32Mi } }
+---
+# C3 — broken-consumer + the fix. broken-cfg here intentionally includes
+# the DB_URL key that the manifests/ version was missing; the lesson is
+# that a missing ConfigMap key turns into a CreateContainerConfigError
+# at pod start, not at apply time.
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: broken-cfg, namespace: lab-04 }
+data:
+  LOG_LEVEL: info
+  DB_URL: "postgres://db.lab-04.svc.cluster.local:5432/app"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: broken-consumer, namespace: lab-04, labels: { app: broken-consumer } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: broken-consumer } }
+  template:
+    metadata: { labels: { app: broken-consumer } }
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["sh", "-c", "echo DB=${DB_URL}; sleep 3600"]
+          env:
+            - name: DB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: broken-cfg
+                  key: DB_URL

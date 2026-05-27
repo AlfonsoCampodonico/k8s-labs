@@ -9,7 +9,7 @@ spec:
   completions: 4
   parallelism: 2
   backoffLimit: 0
-  ttlSecondsAfterFinished: 300
+  ttlSecondsAfterFinished: 3600
   template:
     spec:
       restartPolicy: Never

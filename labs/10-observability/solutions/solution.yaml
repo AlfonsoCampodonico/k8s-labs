@@ -1,0 +1,84 @@
+# Reference solution for lab 10.
+#
+# Apply order:
+#   kubectl apply -f solution.yaml
+#   kubectl apply -f ../08-health-resources/manifests/metrics-server.yaml
+#
+# The fixes.md walkthrough shows how to arrive at this state imperatively
+# (kubectl set image / kubectl patch). This file is the same end state in
+# declarative form so `apply -f` from a clean cluster is enough.
+apiVersion: v1
+kind: Namespace
+metadata: { name: lab-10 }
+---
+# C1 fix #2: the missing GREETING key is now present.
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: app-cfg, namespace: lab-10 }
+data:
+  LOG_LEVEL: info
+  GREETING: hello
+---
+# C1 fix #1: image points at a real podinfo tag (was :does-not-exist).
+# C1 fix #3: the immediate livenessProbe (period 1s, failureThreshold 1)
+# is replaced with a startupProbe that gives the app 60s to come up,
+# then a sane livenessProbe takes over.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: broken, namespace: lab-10, labels: { app: broken } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: broken } }
+  template:
+    metadata: { labels: { app: broken } }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/stefanprodan/podinfo:6.7.1
+          ports: [{ containerPort: 9898 }]
+          envFrom:
+            - configMapRef: { name: app-cfg }
+          startupProbe:
+            httpGet: { path: /healthz, port: 9898 }
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9898 }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9898 }
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+---
+# C2 — the triage playbook lives in a ConfigMap so other tools can
+# consume it. Content is the same as triage-playbook.md in this dir.
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: triage-playbook, namespace: lab-10 }
+data:
+  playbook.md: |
+    # Triage playbook — pod in CrashLoopBackOff
+
+    1. `kubectl -n <ns> get pod <p> -o wide` — note phase, node, restarts.
+    2. `kubectl -n <ns> describe pod <p>` — read the Events list
+       bottom-up. The cause is almost always there.
+    3. `kubectl -n <ns> logs <p> --previous` — the dying container's
+       last words.
+    4. Classify:
+       - `ImagePullBackOff` → image/tag wrong, registry unauthorised, or
+         the node cannot reach the registry.
+       - `CreateContainerConfigError` → a ConfigMap or Secret referenced
+         by env/volume is missing.
+       - `CrashLoopBackOff` with exit 0 → liveness killed it, not the
+         app.
+       - `CrashLoopBackOff` with exit 137 → OOMKilled; check memory
+         limits.
+       - `CrashLoopBackOff` with exit 1 / 139 → app bug; logs will say
+         why.
+    5. Cross-check `kubectl get events --sort-by=.lastTimestamp -n <ns>`.
+    6. If the container has no shell, attach a debug container:
+       `kubectl debug pod/<p> -it --image=nicolaka/netshoot --target=<c>`.
+    7. Fix the root cause, re-apply, watch `kubectl rollout status`.

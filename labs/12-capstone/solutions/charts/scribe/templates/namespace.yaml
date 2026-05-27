@@ -1,0 +1,10 @@
+# Owned by Helm so `helm install scribe ./charts/scribe -n lab-12 --create-namespace`
+# is not strictly required, but `--create-namespace` is the conventional flag.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
+  labels:
+    {{- include "scribe.labels" . | nindent 4 }}
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline

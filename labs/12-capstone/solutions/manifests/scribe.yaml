@@ -1,0 +1,474 @@
+---
+# Source: scribe/templates/backend.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+    - { name: http, port: 80, targetPort: 9898 }
+---
+# Source: scribe/templates/backend.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: lab-12
+  labels:
+    app: backend
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+        app.kubernetes.io/name: backend
+    spec:
+      containers:
+        - name: app
+          image: "ghcr.io/stefanprodan/podinfo:6.7.1"
+          ports: [{ name: http, containerPort: 9898 }]
+          envFrom:
+            - configMapRef: { name: backend-config }
+          env:
+            - name: DATABASE_HOST
+              value: postgres.lab-12.svc.cluster.local
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef: { name: postgres-credentials, key: username }
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: postgres-credentials, key: password }
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef: { name: postgres-credentials, key: database }
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9898 }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9898 }
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 250m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+---
+# Source: scribe/templates/backend.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+
+---
+# Source: scribe/templates/configmaps.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+data:
+  PODINFO_UI_COLOR: "#34568B"
+  PODINFO_UI_MESSAGE: "scribe — capstone"
+  LOG_LEVEL: info
+---
+# Source: scribe/templates/configmaps.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+data:
+  # Minimal nginx site config — proxies /api to the backend Service.
+  default.conf: |
+    server {
+      listen 80 default_server;
+      server_name _;
+      location /api/ {
+        proxy_pass http://backend.lab-12.svc.cluster.local/;
+        proxy_set_header Host $host;
+      }
+      location / {
+        return 200 'scribe frontend ok\n';
+        add_header Content-Type text/plain;
+      }
+    }
+---
+# Source: scribe/templates/configmaps.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+data:
+  01-init.sql: |
+    CREATE TABLE IF NOT EXISTS notes (
+      id    SERIAL PRIMARY KEY,
+      body  TEXT NOT NULL,
+      ts    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+---
+# Source: scribe/templates/frontend.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend
+  ports:
+    - { name: http, port: 80, targetPort: 80 }
+
+---
+# Source: scribe/templates/frontend.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: lab-12
+  labels:
+    app: frontend
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        app.kubernetes.io/name: frontend
+    spec:
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: frontend-config
+            items:
+              - { key: default.conf, path: default.conf }
+      containers:
+        - name: nginx
+          image: "nginx:1.27-alpine"
+          ports: [{ containerPort: 80 }]
+          volumeMounts:
+            - { name: nginx-conf, mountPath: /etc/nginx/conf.d }
+          readinessProbe:
+            httpGet: { path: /, port: 80 }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: 80 }
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 200m
+              memory: 64Mi
+            requests:
+              cpu: 25m
+              memory: 32Mi
+---
+# Source: scribe/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: scribe
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: "scribe.k8s-labs.test"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+
+---
+# Source: scribe/templates/namespace.yaml
+# Owned by Helm so `helm install scribe ./charts/scribe -n lab-12 --create-namespace`
+# is not strictly required, but `--create-namespace` is the conventional flag.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline
+
+---
+# Source: scribe/templates/networkpolicies.yaml
+# Three-layer network policy: deny-all by default, then explicit
+# frontend → backend → postgres allow.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+spec:
+  # Empty podSelector selects every pod in the namespace.
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+# Source: scribe/templates/networkpolicies.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-frontend
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+spec:
+  podSelector:
+    matchLabels: { app: frontend }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        # Ingress-nginx controller lives in the ingress-nginx namespace.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - { protocol: TCP, port: 80 }
+---
+# Source: scribe/templates/networkpolicies.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-backend
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+spec:
+  podSelector:
+    matchLabels: { app: backend }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: frontend }
+      ports:
+        - { protocol: TCP, port: 9898 }
+---
+# Source: scribe/templates/networkpolicies.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-to-postgres
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+spec:
+  podSelector:
+    matchLabels: { app: postgres }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: backend }
+      ports:
+        - { protocol: TCP, port: 5432 }
+
+---
+# Source: scribe/templates/postgres.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+spec:
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - { name: pg, port: 5432, targetPort: 5432 }
+---
+# Source: scribe/templates/postgres.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: lab-12
+  labels:
+    app: postgres
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+        app.kubernetes.io/name: postgres
+    spec:
+      volumes:
+        - name: init
+          configMap:
+            name: postgres-init
+      containers:
+        - name: postgres
+          image: "postgres:16-alpine"
+          ports: [{ name: pg, containerPort: 5432 }]
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: { name: postgres-credentials, key: username }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: postgres-credentials, key: password }
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: { name: postgres-credentials, key: database }
+            # The image's standard data dir would collide with the
+            # mountpoint root on some volumes; PGDATA in a subdir is the
+            # recommended pattern for k8s PVCs.
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: init, mountPath: /docker-entrypoint-initdb.d }
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER"]
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi
+
+---
+# Source: scribe/templates/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-credentials
+  namespace: lab-12
+  labels:
+    app.kubernetes.io/name: scribe
+    app.kubernetes.io/instance: scribe
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: scribe-0.1.0
+type: Opaque
+stringData:
+  username: "scribe"
+  password: "change-me-in-prod"
+  database: "scribe"
+
